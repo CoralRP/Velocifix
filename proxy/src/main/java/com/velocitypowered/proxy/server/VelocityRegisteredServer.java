@@ -58,6 +58,7 @@ import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Represents a server registered on the proxy.
@@ -107,23 +108,23 @@ public class VelocityRegisteredServer implements RegisteredServer, ForwardingAud
     }
     CompletableFuture<ServerPing> pingFuture = new CompletableFuture<>();
     server.createBootstrap(loop)
-        .handler(new ChannelInitializer<Channel>() {
-          @Override
-          protected void initChannel(Channel ch) throws Exception {
-            ch.pipeline()
-                .addLast(FRAME_DECODER, new MinecraftVarintFrameDecoder())
-                .addLast(READ_TIMEOUT,
-                    new ReadTimeoutHandler(pingOptions.getTimeout() == 0
-                            ? server.getConfiguration().getReadTimeout() : pingOptions.getTimeout(),
-                        TimeUnit.MILLISECONDS))
-                .addLast(FRAME_ENCODER, MinecraftVarintLengthEncoder.INSTANCE)
-                .addLast(MINECRAFT_DECODER,
-                    new MinecraftDecoder(ProtocolUtils.Direction.CLIENTBOUND))
-                .addLast(MINECRAFT_ENCODER,
-                    new MinecraftEncoder(ProtocolUtils.Direction.SERVERBOUND));
+        .handler(new ChannelInitializer<>() {
+            @Override
+            protected void initChannel(@NotNull Channel ch) {
+                ch.pipeline()
+                        .addLast(FRAME_DECODER, new MinecraftVarintFrameDecoder())
+                        .addLast(READ_TIMEOUT,
+                                new ReadTimeoutHandler(pingOptions.getTimeout() == 0
+                                        ? server.getConfiguration().getReadTimeout() : pingOptions.getTimeout(),
+                                        TimeUnit.MILLISECONDS))
+                        .addLast(FRAME_ENCODER, MinecraftVarintLengthEncoder.INSTANCE)
+                        .addLast(MINECRAFT_DECODER,
+                                new MinecraftDecoder(ProtocolUtils.Direction.CLIENTBOUND))
+                        .addLast(MINECRAFT_ENCODER,
+                                new MinecraftEncoder(ProtocolUtils.Direction.SERVERBOUND));
 
-            ch.pipeline().addLast(HANDLER, new MinecraftConnection(ch, server));
-          }
+                ch.pipeline().addLast(HANDLER, new MinecraftConnection(ch, server));
+            }
         })
         .connect(serverInfo.getAddress())
         .addListener((ChannelFutureListener) future -> {

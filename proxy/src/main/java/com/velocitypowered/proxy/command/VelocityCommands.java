@@ -166,8 +166,7 @@ public final class VelocityCommands {
    * @param <S>   the type of the command source
    * @return the arguments node, or null if not present
    */
-  static <S> @Nullable VelocityArgumentCommandNode<S, ?> getArgumentsNode(
-      final LiteralCommandNode<S> alias) {
+  static <S> @Nullable VelocityArgumentCommandNode<S, ?> getArgumentsNode(final LiteralCommandNode<S> alias) {
     final CommandNode<S> node = alias.getChild(ARGS_NODE_NAME);
     if (node instanceof VelocityArgumentCommandNode) {
       return (VelocityArgumentCommandNode<S, ?>) node;
