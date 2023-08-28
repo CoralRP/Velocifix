@@ -48,12 +48,7 @@ import com.velocitypowered.proxy.protocol.netty.MinecraftEncoder;
 import com.velocitypowered.proxy.protocol.netty.MinecraftVarintLengthEncoder;
 import com.velocitypowered.proxy.util.except.QuietDecoderException;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.EventLoop;
+import io.netty.channel.*;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.util.ReferenceCountUtil;
@@ -66,6 +61,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A utility class to make working with the pipeline a little less painful and transparently handles
@@ -99,7 +95,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   }
 
   @Override
-  public void channelActive(ChannelHandlerContext ctx) throws Exception {
+  public void channelActive(@NotNull ChannelHandlerContext ctx) {
     if (sessionHandler != null) {
       sessionHandler.connected();
     }
@@ -110,7 +106,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   }
 
   @Override
-  public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+  public void channelInactive(@NotNull ChannelHandlerContext ctx) {
     if (sessionHandler != null) {
       sessionHandler.disconnected();
     }
@@ -123,7 +119,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   }
 
   @Override
-  public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+  public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg) {
     try {
       if (sessionHandler == null) {
         // No session handler available, do nothing
@@ -215,11 +211,12 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
    *
    * @param msg the message to write
    */
-  public void write(Object msg) {
+  public ChannelFuture write(Object msg) {
     if (channel.isActive()) {
-      channel.writeAndFlush(msg, channel.voidPromise());
+      return channel.writeAndFlush(msg, channel.newPromise());
     } else {
       ReferenceCountUtil.release(msg);
+      return null;
     }
   }
 
@@ -312,10 +309,6 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
   public StateRegistry getState() {
     return state;
-  }
-
-  public boolean isAutoReading() {
-    return channel.config().isAutoRead();
   }
 
   public boolean isKnownDisconnect() {
@@ -469,10 +462,6 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
         .addBefore(FRAME_ENCODER, CIPHER_ENCODER, new MinecraftCipherEncoder(encryptionCipher));
 
     channel.pipeline().fireUserEventTriggered(VelocityConnectionEvent.ENCRYPTION_ENABLED);
-  }
-
-  public @Nullable MinecraftConnectionAssociation getAssociation() {
-    return association;
   }
 
   public void setAssociation(MinecraftConnectionAssociation association) {
