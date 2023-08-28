@@ -211,6 +211,8 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
    *
    * @param msg the message to write
    */
+
+  @Nullable
   public ChannelFuture write(Object msg) {
     if (channel.isActive()) {
       return channel.writeAndFlush(msg, channel.newPromise());

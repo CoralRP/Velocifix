@@ -20,6 +20,7 @@ package com.velocitypowered.proxy.protocol.packet.chat;
 import com.velocitypowered.proxy.connection.MinecraftConnection;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.protocol.MinecraftPacket;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.netty.channel.ChannelFuture;
 
 import java.time.Instant;
@@ -100,22 +101,28 @@ public class ChatQueue {
   private static <T extends MinecraftPacket> CompletableFuture<WrappedPacket> awaitChat(
           MinecraftConnection connection,
           CompletableFuture<WrappedPacket> binder,
-          CompletableFuture<WrappedPacket> future) {
+          CompletableFuture<WrappedPacket> future
+  ) {
+    // the binder will run -> then the future will get the `write packet` caller
     return binder.whenCompleteAsync((ignored1, ignored2) -> future.thenApply(writePacket(connection)).join());
   }
 
-  private static <K, V extends MinecraftPacket> CompletableFuture<WrappedPacket> hijackCurrentPacket(
-      MinecraftConnection connection,
-      CompletableFuture<WrappedPacket> binder,
-      CompletableFuture<K> future,
-      InstantPacketMapper<K, V> packetMapper) {
-    CompletableFuture<WrappedPacket> awaitedFuture = new CompletableFuture<>();
 
+  private static <K, V extends MinecraftPacket> CompletableFuture<WrappedPacket> hijackCurrentPacket(
+          MinecraftConnection connection,
+          CompletableFuture<WrappedPacket> binder,
+          CompletableFuture<K> future,
+          InstantPacketMapper<K, V> packetMapper
+  ) {
+    CompletableFuture<WrappedPacket> awaitedFuture = new CompletableFuture<>();
+    // the binder will complete -> then the future will get the `write packet` caller
     binder.whenComplete((previous, ignored) -> {
+      // map the new packet into a better "designed" packet with the hijacked packet's timestamp
       WrappedPacket.wrap(previous.timestamp,
-              future.thenApply(item -> packetMapper.map(previous.timestamp, item)))
+                      future.thenApply(item -> packetMapper.map(previous.timestamp, item)))
               .thenApplyAsync(writePacket(connection), connection.eventLoop())
-              .whenComplete((packet, throwable) -> awaitedFuture.complete(throwable != null ? null : packet));
+              .whenComplete(
+                      (packet, throwable) -> awaitedFuture.complete(throwable != null ? null : packet));
     });
     return awaitedFuture;
   }
@@ -139,28 +146,25 @@ public class ChatQueue {
   }
 
   private static class WrappedPacket {
-
     private final Instant timestamp;
     private final MinecraftPacket packet;
-
     private WrappedPacket(Instant timestamp, MinecraftPacket packet) {
       this.timestamp = timestamp;
       this.packet = packet;
     }
 
+    @Nullable
     public ChannelFuture write(MinecraftConnection connection) {
       if (packet != null) {
-        connection.write(packet);
         return connection.write(packet);
       }
       return null;
     }
 
-    private static CompletableFuture<WrappedPacket> wrap(Instant timestamp,
-        CompletableFuture<MinecraftPacket> nextPacket) {
+    private static CompletableFuture<WrappedPacket> wrap(Instant timestamp, CompletableFuture<MinecraftPacket> nextPacket) {
       return nextPacket
-          .thenApply(pkt -> new WrappedPacket(timestamp, pkt))
-          .exceptionally(ignored -> new WrappedPacket(timestamp, null));
+              .thenApply(pkt -> new WrappedPacket(timestamp, pkt))
+              .exceptionally(ignored -> new WrappedPacket(timestamp, null));
     }
   }
 }
